@@ -10,6 +10,10 @@
 #include <opencv2/opencv.hpp>
 #include <bitset>
 
+using namespace std;
+int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[]);
+void signInitialFaceValue(double initialVal[]);
+
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
 {
@@ -105,6 +109,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 
 	IHighDefinitionFaceFrameSource* pHDFaceSource[BODY_COUNT];
 	IHighDefinitionFaceFrameReader* pHDFaceReader[BODY_COUNT];
+	double initialFaceValue[FaceShapeAnimations_Count];
+	signInitialFaceValue(initialFaceValue);
+
 	IFaceModelBuilder* pFaceModelBuilder[BODY_COUNT];
 	bool produce[BODY_COUNT] = { false };
 	IFaceAlignment* pFaceAlignment[BODY_COUNT];
@@ -239,11 +246,25 @@ int _tmain( int argc, _TCHAR* argv[] )
 								IFaceModelData* pFaceModelData = nullptr;
 								hResult = pFaceModelBuilder[count]->GetFaceData( &pFaceModelData );
 								if( SUCCEEDED( hResult ) && pFaceModelData != nullptr ){
-									hResult = pFaceModelData->ProduceFaceModel( &pFaceModel[count] );
+									/*hResult = pFaceModelData->ProduceFaceModel( &pFaceModel[count] );
 									if( SUCCEEDED( hResult ) && pFaceModel[count] != nullptr ){
 										produce[count] = true;
-									}
+									}*/
+
+									CameraSpacePoint headPivot;
+									pFaceAlignment[count]->get_HeadPivotPoint(&headPivot);
+									float* pAnimationUnits = new float[FaceShapeAnimations_Count];
+									pFaceAlignment[count]->GetAnimationUnits(FaceShapeAnimations_Count, pAnimationUnits);
+									// draw face frame results
+									int res = DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue);
+									string outputResult = "";
+									if (res == 1) outputResult = ":-)";
+									else if (res == 2) outputResult = ":-O";
+									else outputResult = ":-|";
+									cv::putText(bufferMat, outputResult, cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
+									delete[] pAnimationUnits;
 								}
+
 								SafeRelease( pFaceModelData );
 							}
 							else{
@@ -301,7 +322,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 									int x = static_cast<int>( colorSpacePoint.X );
 									int y = static_cast<int>( colorSpacePoint.Y );
 									if( ( x >= 0 ) && ( x < width ) && ( y >= 0 ) && ( y < height ) ){
-										cv::circle( bufferMat, cv::Point( static_cast<int>( colorSpacePoint.X ), static_cast<int>( colorSpacePoint.Y ) ), 5, static_cast<cv::Scalar>( color[count] ), -1, CV_AA );
+										cv::circle( bufferMat, cv::Point( static_cast<int>( colorSpacePoint.X ), static_cast<int>( colorSpacePoint.Y ) ), 2, static_cast<cv::Scalar>( color[count] ), -1, CV_AA );
 									}
 								}
 							}
@@ -342,3 +363,139 @@ int _tmain( int argc, _TCHAR* argv[] )
 	return 0;
 }
 
+int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[])
+{
+
+		std::wstring faceText = L"";
+
+		faceText += L"HeadPivot Coordinates\n";
+		faceText += L" X-> " + std::to_wstring(pHeadPivot->X) + L" Y-> " + std::to_wstring(pHeadPivot->Y) + L" Z-> " + std::to_wstring(pHeadPivot->Z) + L" \n";
+		double percent[FaceShapeAnimations_Count];
+
+		//get the HDFace animation units
+		for (int i = 0; i < FaceShapeAnimations_Count; i++)
+		{
+			FaceShapeAnimations faceAnim = (FaceShapeAnimations)i;
+			std::wstring strValue = std::to_wstring(pAnimUnits[faceAnim]);
+			percent[i] = (pAnimUnits[faceAnim] - initialVal[i]) / pAnimUnits[faceAnim];
+
+				switch (faceAnim)
+				{
+				case FaceShapeAnimations::FaceShapeAnimations_JawOpen:
+					faceText += L"JawOpened: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_JawSlideRight:
+					faceText += L"JawSlideRight: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff:
+					faceText += L"LeftCheekPuff: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LefteyebrowLowerer:
+					faceText += L"LeftEyeBrowLowered: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LefteyeClosed:
+					faceText += L"LeftEyeClosed: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_RighteyebrowLowerer:
+					faceText += L"RightEyeBrowLowered: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_RighteyeClosed:
+					faceText += L"RightEyeClosed: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorLeft:
+					faceText += L"LipCornerDepressedLeft: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorRight:
+					faceText += L"LipCornerDepressedRight: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerLeft:
+					faceText += L"LipCornerPulledLeft: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerRight:
+					faceText += L"LipCornerPulledRight: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipPucker:
+					faceText += L"Lips Puckered: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft:
+					faceText += L"LipStretchLeft: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherRight:
+					faceText += L"LipStretchRight: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorLeft:
+					faceText += L"LowerLipDepressedLeft: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorRight:
+					faceText += L"LowerLipDepressedRight: " + strValue + L"\n";
+					break;
+				case FaceShapeAnimations::FaceShapeAnimations_RightcheekPuff:
+					faceText += L"RightCheekPuffed: " + strValue + L"\n";
+					break;
+
+				}
+
+		}
+		if (percent[FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft] > 0.2 ||
+			percent[FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff] > 0.63){
+			faceText += L":-)\n";
+			wcout << faceText << endl;
+			return 1;
+		}
+		else if (percent[FaceShapeAnimations::FaceShapeAnimations_JawOpen] > 0.7){
+			faceText += L":-O\n";
+			wcout << faceText << endl;
+			return 2;
+		}
+		else{
+			faceText += L":-|\n";
+			wcout << faceText << endl;
+			return 3;
+		}
+		return 3;
+}
+
+void signInitialFaceValue(double initialVal[])
+{
+
+	for (int i = 0; i < FaceShapeAnimations_Count; i++)
+	{
+		FaceShapeAnimations faceAnim = (FaceShapeAnimations)i;
+		{ switch (faceAnim)
+			{
+			case FaceShapeAnimations::FaceShapeAnimations_JawOpen:
+				initialVal[i] = 0.05;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff:
+				initialVal[i] = 0.03;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LefteyebrowLowerer:
+				initialVal[i] = 0.2;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_RighteyebrowLowerer:
+				initialVal[i] = 0.2;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorLeft:
+				initialVal[i] = 0.38;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorRight:
+				initialVal[i] = 0.5;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LipPucker:
+				initialVal[i] = 0.3;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft:
+				initialVal[i] = 0.03;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_LipStretcherRight:
+				initialVal[i] = 0.03;
+				break;
+			case FaceShapeAnimations::FaceShapeAnimations_RightcheekPuff:
+				initialVal[i] = 0.03;
+				break;
+
+			}
+		}
+
+	}
+}
