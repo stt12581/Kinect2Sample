@@ -11,8 +11,10 @@
 #include <bitset>
 
 using namespace std;
-int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[]);
+int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count);
 void signInitialFaceValue(double initialVal[]);
+
+#define TOTAL_INIT 50
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -110,7 +112,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 	IHighDefinitionFaceFrameSource* pHDFaceSource[BODY_COUNT];
 	IHighDefinitionFaceFrameReader* pHDFaceReader[BODY_COUNT];
 	double initialFaceValue[FaceShapeAnimations_Count];
-	signInitialFaceValue(initialFaceValue);
+	//signInitialFaceValue(initialFaceValue);
+	bool begin = true;
+	int initial_count = 0;
 
 	IFaceModelBuilder* pFaceModelBuilder[BODY_COUNT];
 	bool produce[BODY_COUNT] = { false };
@@ -255,8 +259,20 @@ int _tmain( int argc, _TCHAR* argv[] )
 									pFaceAlignment[count]->get_HeadPivotPoint(&headPivot);
 									float* pAnimationUnits = new float[FaceShapeAnimations_Count];
 									pFaceAlignment[count]->GetAnimationUnits(FaceShapeAnimations_Count, pAnimationUnits);
+
 									// draw face frame results
-									int res = DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue);
+									/*
+									    begin = true, add value to initial
+										begin = false && initial_count != 0, calculate average initial value
+										begin = false && initial_count ==0, do regular recognition
+									*/
+									int res = DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count);
+									if (!begin) initial_count = 0;
+									else{
+										initial_count++;
+										if (initial_count >= TOTAL_INIT) begin = false;
+									}
+
 									string outputResult = "";
 									if (res == 1) outputResult = ":-)";
 									else if (res == 2) outputResult = ":-O";
@@ -363,7 +379,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 	return 0;
 }
 
-int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[])
+int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count)
 {
 
 		std::wstring faceText = L"";
@@ -377,67 +393,108 @@ int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimU
 		{
 			FaceShapeAnimations faceAnim = (FaceShapeAnimations)i;
 			std::wstring strValue = std::to_wstring(pAnimUnits[faceAnim]);
-			percent[i] = (pAnimUnits[faceAnim] - initialVal[i]) / pAnimUnits[faceAnim];
+			if (pAnimUnits[faceAnim] == 0) percent[i] = 0;
+			else percent[i] = (pAnimUnits[faceAnim] - initialVal[i]) / pAnimUnits[faceAnim];
 
 				switch (faceAnim)
 				{
 				case FaceShapeAnimations::FaceShapeAnimations_JawOpen:
-					faceText += L"JawOpened: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim]/count;
+					faceText += L"JawOpened: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_JawSlideRight:
-					faceText += L"JawSlideRight: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"JawSlideRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff:
-					faceText += L"LeftCheekPuff: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LeftCheekPuff: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LefteyebrowLowerer:
-					faceText += L"LeftEyeBrowLowered: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LeftEyeBrowLowered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LefteyeClosed:
-					faceText += L"LeftEyeClosed: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LeftEyeClosed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RighteyebrowLowerer:
-					faceText += L"RightEyeBrowLowered: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"RightEyeBrowLowered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RighteyeClosed:
-					faceText += L"RightEyeClosed: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"RightEyeClosed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorLeft:
-					faceText += L"LipCornerDepressedLeft: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LipCornerDepressedLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorRight:
-					faceText += L"LipCornerDepressedRight: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LipCornerDepressedRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerLeft:
-					faceText += L"LipCornerPulledLeft: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LipCornerPulledLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerRight:
-					faceText += L"LipCornerPulledRight: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LipCornerPulledRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipPucker:
-					faceText += L"Lips Puckered: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"Lips Puckered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft:
-					faceText += L"LipStretchLeft: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LipStretchLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherRight:
-					faceText += L"LipStretchRight: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LipStretchRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorLeft:
-					faceText += L"LowerLipDepressedLeft: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LowerLipDepressedLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorRight:
-					faceText += L"LowerLipDepressedRight: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"LowerLipDepressedRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RightcheekPuff:
-					faceText += L"RightCheekPuffed: " + strValue + L"\n";
+					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+					faceText += L"RightCheekPuffed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 
 				}
 
 		}
-		if (percent[FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft] > 0.2 ||
-			percent[FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff] > 0.63){
+
+		if (begin){
+			wcout << "hahaha" << endl;
+			return 0;
+		}
+
+		if (percent[FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft] > 0.4 ||
+			percent[FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff] > 0.6){
 			faceText += L":-)\n";
 			wcout << faceText << endl;
 			return 1;
