@@ -21,6 +21,7 @@ void setNewParameter(svm_parameter& parameter);
 void getEigenVec(double eigenVec[][3]);
 
 #define TOTAL_INIT 210
+#define TOTAL_DATA 840
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -128,19 +129,19 @@ int _tmain( int argc, _TCHAR* argv[] )
 	ifstream inFile;
 	problem.y = new double[FaceShapeAnimations_Count];
 	for (int m = 0; m < FaceShapeAnimations_Count; m++)
-	problem.x = new svm_node*[840];
-	problem.l = 840;
-	for (int i = 0; i < 840; i++) problem.x[i] = new svm_node[18];
+	problem.x = new svm_node*[TOTAL_DATA];
+	problem.l = TOTAL_DATA;
+	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[4];
 
-	inFile.open("total.txt");
-	for (int i = 0; i < 840; i++){
-		for (int j = 0; j < 17; j++){
-			problem.x[i][j].index = j;
-			inFile >> problem.x[i][j].value;
+	inFile.open("newData.txt");
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < TOTAL_DATA; j++){
+			problem.x[j][i].index = i;
+			inFile >> problem.x[j][i].value;
 		}
 	}
-	for (int i = 0; i < 840; i++){
-		problem.x[i][17].index = -1;
+	for (int i = 0; i < TOTAL_DATA; i++){
+		problem.x[i][3].index = -1;
 		if (i<210) problem.y[i] = 0;
 		else if (i<420) problem.y[i] = 1;
 		else if (i<630) problem.y[i] = 2;
@@ -321,21 +322,22 @@ int _tmain( int argc, _TCHAR* argv[] )
 										begin = false && initial_count ==0, do regular recognition
 									*/
 									vector<double> testData_vec= DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count, data);
-									svm_node* testData = new svm_node[18];
+									svm_node* testData = new svm_node[4];
 									
-									/*for (int i = 0; i < 3; i++){
+									for (int i = 0; i < 3; i++){
 										testData[i].value = 0;
 										for (int j = 0; j < FaceShapeAnimations_Count; j++){
 											testData[i].value += testData_vec[j] * eigenVec[j][i];
 										}
 										testData[i].index = i;
 									}
-									testData[3].index = -1;*/
+									testData[3].index = -1;
+									/*
 									for (int i = 0; i < FaceShapeAnimations_Count; i++){
 										testData[i].value = testData_vec[i];
 										testData[i].index = i;
 									}
-									testData[17].index = -1;
+									testData[17].index = -1;*/
 									
 									if (!begin) initial_count = 0;
 									else{
@@ -737,22 +739,22 @@ void signInitialFaceValue(double initialVal[])
 
 void readTrainingData(string fileName, struct svm_problem& problem){
 	ifstream inFile;
-	double data[840][3];
+	double data[TOTAL_DATA][3];
 	problem.y = new double[FaceShapeAnimations_Count];
-	problem.x = new svm_node*[840];
-	problem.l = 840;
-	for (int i = 0; i < 840; i++) problem.x[i] = new svm_node[4];
+	problem.x = new svm_node*[TOTAL_DATA];
+	problem.l = TOTAL_DATA;
+	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[4];
 
 	inFile.open(fileName);
 	for (int i = 0; i < 3; i++){
-		for (int j = 0; j < 840; j++){
+		for (int j = 0; j < TOTAL_DATA; j++){
 			inFile >> data[j][i];
 			cout << data[j][i] << endl;
 			problem.x[j][i].index = i;
 			inFile >> problem.x[j][i].value;
 		}
 	}
-	for (int i = 0; i < 840; i++){
+	for (int i = 0; i < TOTAL_DATA; i++){
 		problem.x[i][3].index = -1;
 		if(i<210) problem.y[i] = 0;
 		else if (i<420) problem.y[i] = 1;
