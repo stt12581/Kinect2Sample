@@ -9,12 +9,18 @@
 #include <Kinect.Face.h>
 #include <opencv2/opencv.hpp>
 #include <bitset>
+#include <vector>
+#include <fstream>
+#include "C:\Users\z4shang\Documents\libsvm-master\svm.h"
 
 using namespace std;
-int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count);
+const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data);
 void signInitialFaceValue(double initialVal[]);
+void readTrainingData(string fileName, svm_problem* problem);
+void setNewParameter(svm_parameter& parameter);
+void getEigenVec(double eigenVec[][3]);
 
-#define TOTAL_INIT 50
+#define TOTAL_INIT 210
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -112,9 +118,57 @@ int _tmain( int argc, _TCHAR* argv[] )
 	IHighDefinitionFaceFrameSource* pHDFaceSource[BODY_COUNT];
 	IHighDefinitionFaceFrameReader* pHDFaceReader[BODY_COUNT];
 	double initialFaceValue[FaceShapeAnimations_Count];
+	vector<vector<double>> data;
 	//signInitialFaceValue(initialFaceValue);
 	bool begin = true;
 	int initial_count = 0;
+	svm_problem problem;
+	
+	//read training dataset
+	ifstream inFile;
+	problem.y = new double[FaceShapeAnimations_Count];
+	for (int m = 0; m < FaceShapeAnimations_Count; m++)
+	problem.x = new svm_node*[840];
+	problem.l = 840;
+	for (int i = 0; i < 840; i++) problem.x[i] = new svm_node[18];
+
+	inFile.open("total.txt");
+	for (int i = 0; i < 840; i++){
+		for (int j = 0; j < 17; j++){
+			problem.x[i][j].index = j;
+			inFile >> problem.x[i][j].value;
+		}
+	}
+	for (int i = 0; i < 840; i++){
+		problem.x[i][17].index = -1;
+		if (i<210) problem.y[i] = 0;
+		else if (i<420) problem.y[i] = 1;
+		else if (i<630) problem.y[i] = 2;
+		else problem.y[i] = 3;
+	}
+	inFile.close();
+
+	double eigenVec[17][3];
+	getEigenVec(eigenVec);
+
+	//set new parameter
+	struct svm_parameter parameter;
+	parameter.svm_type = C_SVC;
+	parameter.kernel_type = RBF;
+	parameter.gamma = 0.3333;
+	parameter.degree = 3;
+	parameter.cache_size = 40;
+	parameter.eps = 0.1;
+	parameter.C = 1;
+	parameter.shrinking = 1;
+	parameter.probability = 0;
+	parameter.nr_weight = 0;
+	const char* result = svm_check_parameter(&problem, &parameter);
+	if (result != NULL){
+		cout << "haha"<<result << endl;
+		return 0;
+	}
+	svm_model* model = svm_train(&problem, &parameter);
 
 	IFaceModelBuilder* pFaceModelBuilder[BODY_COUNT];
 	bool produce[BODY_COUNT] = { false };
@@ -266,17 +320,62 @@ int _tmain( int argc, _TCHAR* argv[] )
 										begin = false && initial_count != 0, calculate average initial value
 										begin = false && initial_count ==0, do regular recognition
 									*/
-									int res = DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count);
+									vector<double> testData_vec= DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count, data);
+									svm_node* testData = new svm_node[18];
+									
+									/*for (int i = 0; i < 3; i++){
+										testData[i].value = 0;
+										for (int j = 0; j < FaceShapeAnimations_Count; j++){
+											testData[i].value += testData_vec[j] * eigenVec[j][i];
+										}
+										testData[i].index = i;
+									}
+									testData[3].index = -1;*/
+									for (int i = 0; i < FaceShapeAnimations_Count; i++){
+										testData[i].value = testData_vec[i];
+										testData[i].index = i;
+									}
+									testData[17].index = -1;
+									
 									if (!begin) initial_count = 0;
 									else{
 										initial_count++;
-										if (initial_count >= TOTAL_INIT) begin = false;
+										if (initial_count >= TOTAL_INIT){
+											begin = false;
+											ofstream myfile;
+											myfile.open("hahahaha.txt");
+											for (int i = 0; i < data.size(); i++){
+												for (int j = 0; j < data[0].size(); j++){
+													myfile << data[i][j] << " ";
+												}
+												myfile << endl;
+											}
+											myfile.close();
+											
+										}
 									}
 
+									
+									double res = svm_predict(model, testData);
+									wstring faceText;
 									string outputResult = "";
-									if (res == 1) outputResult = ":-)";
-									else if (res == 2) outputResult = ":-O";
-									else outputResult = ":-|";
+									if (res == 0){
+										outputResult = ":-|";
+										faceText = L":-|\n";
+									}
+									else if (res == 1){
+										outputResult = ":-)";
+										faceText = L":-)\n";
+									}
+									else if (res == 2){
+										outputResult = ":-O";
+										faceText = L":-O\n";
+									}
+									else{
+										outputResult = ":-(";
+										faceText = L":-(\n";
+									}
+									wcout << faceText << endl;
 									cv::putText(bufferMat, outputResult, cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
 									delete[] pAnimationUnits;
 								}
@@ -379,7 +478,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 	return 0;
 }
 
-int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count)
+const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data)
 {
 
 		std::wstring faceText = L"";
@@ -387,6 +486,8 @@ int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimU
 		faceText += L"HeadPivot Coordinates\n";
 		faceText += L" X-> " + std::to_wstring(pHeadPivot->X) + L" Y-> " + std::to_wstring(pHeadPivot->Y) + L" Z-> " + std::to_wstring(pHeadPivot->Z) + L" \n";
 		double percent[FaceShapeAnimations_Count];
+		vector<double> subData;
+		vector<double> testData;
 
 		//get the HDFace animation units
 		for (int i = 0; i < FaceShapeAnimations_Count; i++)
@@ -399,95 +500,171 @@ int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimU
 				switch (faceAnim)
 				{
 				case FaceShapeAnimations::FaceShapeAnimations_JawOpen:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim]/count;
 					faceText += L"JawOpened: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_JawSlideRight:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"JawSlideRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LeftCheekPuff: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LefteyebrowLowerer:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LeftEyeBrowLowered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LefteyeClosed:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LeftEyeClosed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RighteyebrowLowerer:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"RightEyeBrowLowered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RighteyeClosed:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"RightEyeClosed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorLeft:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerDepressedLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorRight:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerDepressedRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerLeft:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerPulledLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerRight:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerPulledRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipPucker:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"Lips Puckered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipStretchLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherRight:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipStretchRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorLeft:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LowerLipDepressedLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorRight:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LowerLipDepressedRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RightcheekPuff:
-					if (begin) initialVal[faceAnim] += pAnimUnits[faceAnim];
+					if (begin){
+						initialVal[faceAnim] += pAnimUnits[faceAnim];
+						subData.push_back(pAnimUnits[faceAnim]);
+					}
+					testData.push_back(pAnimUnits[faceAnim]);
 					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"RightCheekPuffed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 
 				}
-
+				
 		}
-
+		data.push_back(subData);
+		
+		if (begin){
+			wcout << "hahaha" << endl;
+		}
+		else{
+			wcout << faceText << endl;
+		}
+		/*
 		if (begin){
 			wcout << "hahaha" << endl;
 			return 0;
@@ -509,7 +686,8 @@ int DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimU
 			wcout << faceText << endl;
 			return 3;
 		}
-		return 3;
+		return 3;*/
+		return testData;
 }
 
 void signInitialFaceValue(double initialVal[])
@@ -555,4 +733,53 @@ void signInitialFaceValue(double initialVal[])
 		}
 
 	}
+}
+
+void readTrainingData(string fileName, struct svm_problem& problem){
+	ifstream inFile;
+	double data[840][3];
+	problem.y = new double[FaceShapeAnimations_Count];
+	problem.x = new svm_node*[840];
+	problem.l = 840;
+	for (int i = 0; i < 840; i++) problem.x[i] = new svm_node[4];
+
+	inFile.open(fileName);
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 840; j++){
+			inFile >> data[j][i];
+			cout << data[j][i] << endl;
+			problem.x[j][i].index = i;
+			inFile >> problem.x[j][i].value;
+		}
+	}
+	for (int i = 0; i < 840; i++){
+		problem.x[i][3].index = -1;
+		if(i<210) problem.y[i] = 0;
+		else if (i<420) problem.y[i] = 1;
+		else if (i<630) problem.y[i] = 2;
+		else problem.y[i] = 3;
+	}
+	inFile.close();
+}
+
+void setNewParameter(svm_parameter& parameter){
+	parameter.svm_type = C_SVC;
+	parameter.kernel_type = RBF;
+	parameter.gamma = 0.3333;
+	parameter.cache_size = 40;
+	parameter.eps=0.1;
+	parameter.C=1;
+	parameter.shrinking = 1;
+	parameter.probability = 0;
+}
+
+void getEigenVec(double eigenVec[][3]){
+	ifstream inFile;
+	inFile.open("eigenVec.txt");
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < FaceShapeAnimations_Count; j++){
+			inFile >> eigenVec[j][i];
+		}
+	}
+	inFile.close();
 }
