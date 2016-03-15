@@ -19,9 +19,10 @@ void signInitialFaceValue(double initialVal[]);
 void readTrainingData(string fileName, svm_problem* problem);
 void setNewParameter(svm_parameter& parameter);
 void getEigenVec(double eigenVec[][3]);
+void readNormalizedData(double normalize[][2]);
 
-#define TOTAL_INIT 210
-#define TOTAL_DATA 840
+#define TOTAL_INIT 200
+#define TOTAL_DATA 800
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -151,6 +152,10 @@ int _tmain( int argc, _TCHAR* argv[] )
 
 	double eigenVec[17][3];
 	getEigenVec(eigenVec);
+
+	//set normalized data
+	double normalize[17][2];
+	readNormalizedData(normalize);
 
 	//set new parameter
 	struct svm_parameter parameter;
@@ -322,6 +327,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 										begin = false && initial_count ==0, do regular recognition
 									*/
 									vector<double> testData_vec= DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count, data);
+									for (int i = 0; i < testData_vec.size(); i++){
+										testData_vec[i] = (testData_vec[i] - normalize[i][0]) / normalize[i][1];
+									}
 									svm_node* testData = new svm_node[4];
 									
 									for (int i = 0; i < 3; i++){
@@ -357,29 +365,31 @@ int _tmain( int argc, _TCHAR* argv[] )
 										}
 									}
 
-									
-									double res = svm_predict(model, testData);
-									wstring faceText;
-									string outputResult = "";
-									if (res == 0){
-										outputResult = ":-|";
-										faceText = L":-|\n";
+									if (!begin){
+										double res = svm_predict(model, testData);
+										wstring faceText;
+										string outputResult = "";
+										if (res == 0){
+											outputResult = ":-|";
+											faceText = L":-|\n";
+										}
+										else if (res == 1){
+											outputResult = ":-)";
+											faceText = L":-)\n";
+										}
+										else if (res == 2){
+											outputResult = ":-O";
+											faceText = L":-O\n";
+										}
+										else{
+											outputResult = ":-(";
+											faceText = L":-(\n";
+										}
+										wcout << faceText << endl;
+										cv::putText(bufferMat, outputResult, cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
 									}
-									else if (res == 1){
-										outputResult = ":-)";
-										faceText = L":-)\n";
-									}
-									else if (res == 2){
-										outputResult = ":-O";
-										faceText = L":-O\n";
-									}
-									else{
-										outputResult = ":-(";
-										faceText = L":-(\n";
-									}
-									wcout << faceText << endl;
-									cv::putText(bufferMat, outputResult, cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
 									delete[] pAnimationUnits;
+									//delete[] testData;
 								}
 
 								SafeRelease( pFaceModelData );
@@ -494,173 +504,80 @@ const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, co
 		//get the HDFace animation units
 		for (int i = 0; i < FaceShapeAnimations_Count; i++)
 		{
+			faceText += L"initial " + to_wstring(initialVal[i]);
 			FaceShapeAnimations faceAnim = (FaceShapeAnimations)i;
 			std::wstring strValue = std::to_wstring(pAnimUnits[faceAnim]);
 			if (pAnimUnits[faceAnim] == 0) percent[i] = 0;
-			else percent[i] = (pAnimUnits[faceAnim] - initialVal[i]) / pAnimUnits[faceAnim];
+			else percent[i] = (pAnimUnits[faceAnim] - initialVal[i]) / initialVal[i];
+
+			if (begin){
+				initialVal[faceAnim] += pAnimUnits[faceAnim];
+				subData.push_back(pAnimUnits[faceAnim]);
+			}
+			testData.push_back(pAnimUnits[i]);
+			if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+
 
 				switch (faceAnim)
 				{
 				case FaceShapeAnimations::FaceShapeAnimations_JawOpen:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim]/count;
 					faceText += L"JawOpened: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_JawSlideRight:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"JawSlideRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LeftCheekPuff: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LefteyebrowLowerer:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LeftEyeBrowLowered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LefteyeClosed:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LeftEyeClosed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RighteyebrowLowerer:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"RightEyeBrowLowered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RighteyeClosed:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"RightEyeClosed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorLeft:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerDepressedLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorRight:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerDepressedRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerLeft:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerPulledLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipCornerPullerRight:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipCornerPulledRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipPucker:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"Lips Puckered: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipStretchLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LipStretcherRight:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LipStretchRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorLeft:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LowerLipDepressedLeft: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_LowerlipDepressorRight:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"LowerLipDepressedRight: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 				case FaceShapeAnimations::FaceShapeAnimations_RightcheekPuff:
-					if (begin){
-						initialVal[faceAnim] += pAnimUnits[faceAnim];
-						subData.push_back(pAnimUnits[faceAnim]);
-					}
-					testData.push_back(pAnimUnits[faceAnim]);
-					if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
 					faceText += L"RightCheekPuffed: " + strValue + L"    init: " + to_wstring(initialVal[faceAnim]) + L"  %: " + to_wstring(percent[i]) + L"\n";
 					break;
 
 				}
 				
 		}
-		data.push_back(subData);
 		
 		if (begin){
+			data.push_back(subData);
 			wcout << "hahaha" << endl;
 		}
 		else{
@@ -784,4 +701,16 @@ void getEigenVec(double eigenVec[][3]){
 		}
 	}
 	inFile.close();
+}
+
+void readNormalizedData(double normalize[][2]){
+	ifstream inFile;
+	inFile.open("normalized.txt");
+	for (int i = 0; i < 2; i++){
+		for (int j = 0; j < 17; j++){
+			inFile >> normalize[j][i];
+		}
+	}
+	inFile.close();
+
 }
