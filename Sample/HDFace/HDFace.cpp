@@ -13,16 +13,15 @@
 #include <fstream>
 #include "C:\Users\z4shang\Documents\libsvm-master\svm.h"
 
-using namespace std;
-const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data);
-void signInitialFaceValue(double initialVal[]);
-void readTrainingData(string fileName, svm_problem* problem);
-void setNewParameter(svm_parameter& parameter);
-void getEigenVec(double eigenVec[][3]);
-void readNormalizedData(double normalize[][2]);
-
 #define TOTAL_INIT 200
 #define TOTAL_DATA 800
+#define TOP_FEATURE 5
+
+using namespace std;
+const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data);
+void setNewParameter(svm_parameter& parameter);
+void getEigenVec(double eigenVec[][TOP_FEATURE]);
+void readNormalizedData(double normalize[][2]);
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -121,7 +120,6 @@ int _tmain( int argc, _TCHAR* argv[] )
 	IHighDefinitionFaceFrameReader* pHDFaceReader[BODY_COUNT];
 	double initialFaceValue[FaceShapeAnimations_Count];
 	vector<vector<double>> data;
-	//signInitialFaceValue(initialFaceValue);
 	bool begin = true;
 	int initial_count = 0;
 	svm_problem problem;
@@ -135,22 +133,22 @@ int _tmain( int argc, _TCHAR* argv[] )
 	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[4];
 
 	inFile.open("newData.txt");
-	for (int i = 0; i < 3; i++){
+	for (int i = 0; i < TOP_FEATURE; i++){
 		for (int j = 0; j < TOTAL_DATA; j++){
 			problem.x[j][i].index = i;
 			inFile >> problem.x[j][i].value;
 		}
 	}
 	for (int i = 0; i < TOTAL_DATA; i++){
-		problem.x[i][3].index = -1;
-		if (i<210) problem.y[i] = 0;
-		else if (i<420) problem.y[i] = 1;
-		else if (i<630) problem.y[i] = 2;
+		problem.x[i][TOP_FEATURE].index = -1;
+		if (i<200) problem.y[i] = 0;
+		else if (i<400) problem.y[i] = 1;
+		else if (i<600) problem.y[i] = 2;
 		else problem.y[i] = 3;
 	}
 	inFile.close();
 
-	double eigenVec[17][3];
+	double eigenVec[17][TOP_FEATURE];
 	getEigenVec(eigenVec);
 
 	//set normalized data
@@ -332,14 +330,14 @@ int _tmain( int argc, _TCHAR* argv[] )
 									}
 									svm_node* testData = new svm_node[4];
 									
-									for (int i = 0; i < 3; i++){
+									for (int i = 0; i < TOP_FEATURE; i++){
 										testData[i].value = 0;
 										for (int j = 0; j < FaceShapeAnimations_Count; j++){
 											testData[i].value += testData_vec[j] * eigenVec[j][i];
 										}
 										testData[i].index = i;
 									}
-									testData[3].index = -1;
+									testData[TOP_FEATURE].index = -1;
 									/*
 									for (int i = 0; i < FaceShapeAnimations_Count; i++){
 										testData[i].value = testData_vec[i];
@@ -609,78 +607,6 @@ const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, co
 		return testData;
 }
 
-void signInitialFaceValue(double initialVal[])
-{
-
-	for (int i = 0; i < FaceShapeAnimations_Count; i++)
-	{
-		FaceShapeAnimations faceAnim = (FaceShapeAnimations)i;
-		{ switch (faceAnim)
-			{
-			case FaceShapeAnimations::FaceShapeAnimations_JawOpen:
-				initialVal[i] = 0.05;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LeftcheekPuff:
-				initialVal[i] = 0.03;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LefteyebrowLowerer:
-				initialVal[i] = 0.2;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_RighteyebrowLowerer:
-				initialVal[i] = 0.2;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorLeft:
-				initialVal[i] = 0.38;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LipCornerDepressorRight:
-				initialVal[i] = 0.5;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LipPucker:
-				initialVal[i] = 0.3;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LipStretcherLeft:
-				initialVal[i] = 0.03;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_LipStretcherRight:
-				initialVal[i] = 0.03;
-				break;
-			case FaceShapeAnimations::FaceShapeAnimations_RightcheekPuff:
-				initialVal[i] = 0.03;
-				break;
-
-			}
-		}
-
-	}
-}
-
-void readTrainingData(string fileName, struct svm_problem& problem){
-	ifstream inFile;
-	double data[TOTAL_DATA][3];
-	problem.y = new double[FaceShapeAnimations_Count];
-	problem.x = new svm_node*[TOTAL_DATA];
-	problem.l = TOTAL_DATA;
-	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[4];
-
-	inFile.open(fileName);
-	for (int i = 0; i < 3; i++){
-		for (int j = 0; j < TOTAL_DATA; j++){
-			inFile >> data[j][i];
-			cout << data[j][i] << endl;
-			problem.x[j][i].index = i;
-			inFile >> problem.x[j][i].value;
-		}
-	}
-	for (int i = 0; i < TOTAL_DATA; i++){
-		problem.x[i][3].index = -1;
-		if(i<210) problem.y[i] = 0;
-		else if (i<420) problem.y[i] = 1;
-		else if (i<630) problem.y[i] = 2;
-		else problem.y[i] = 3;
-	}
-	inFile.close();
-}
-
 void setNewParameter(svm_parameter& parameter){
 	parameter.svm_type = C_SVC;
 	parameter.kernel_type = RBF;
@@ -692,10 +618,10 @@ void setNewParameter(svm_parameter& parameter){
 	parameter.probability = 0;
 }
 
-void getEigenVec(double eigenVec[][3]){
+void getEigenVec(double eigenVec[][TOP_FEATURE]){
 	ifstream inFile;
 	inFile.open("eigenVec.txt");
-	for (int i = 0; i < 3; i++){
+	for (int i = 0; i < TOP_FEATURE; i++){
 		for (int j = 0; j < FaceShapeAnimations_Count; j++){
 			inFile >> eigenVec[j][i];
 		}
