@@ -15,11 +15,10 @@
 
 #define TOTAL_INIT 200
 #define TOTAL_DATA 800
-#define TOP_FEATURE 5
+#define TOP_FEATURE 17
 
 using namespace std;
 const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data);
-void setNewParameter(svm_parameter& parameter);
 void getEigenVec(double eigenVec[][TOP_FEATURE]);
 void readNormalizedData(double normalize[][2]);
 
@@ -130,13 +129,15 @@ int _tmain( int argc, _TCHAR* argv[] )
 	for (int m = 0; m < FaceShapeAnimations_Count; m++)
 	problem.x = new svm_node*[TOTAL_DATA];
 	problem.l = TOTAL_DATA;
-	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[4];
+	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[TOP_FEATURE+1];
 
-	inFile.open("newData.txt");
-	for (int i = 0; i < TOP_FEATURE; i++){
-		for (int j = 0; j < TOTAL_DATA; j++){
-			problem.x[j][i].index = i;
-			inFile >> problem.x[j][i].value;
+	inFile.open("total.txt");
+	if (!inFile.is_open()) return 0;
+
+	for (int i = 0; i < TOTAL_DATA; i++){
+		for (int j = 0; j < TOP_FEATURE; j++){
+			problem.x[i][j].index = j+1;
+			inFile >> problem.x[i][j].value;
 		}
 	}
 	for (int i = 0; i < TOTAL_DATA; i++){
@@ -163,7 +164,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 	parameter.degree = 3;
 	parameter.cache_size = 40;
 	parameter.eps = 0.1;
-	parameter.C = 1;
+	parameter.C = 10;
 	parameter.shrinking = 1;
 	parameter.probability = 0;
 	parameter.nr_weight = 0;
@@ -325,17 +326,18 @@ int _tmain( int argc, _TCHAR* argv[] )
 										begin = false && initial_count ==0, do regular recognition
 									*/
 									vector<double> testData_vec= DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count, data);
-									for (int i = 0; i < testData_vec.size(); i++){
+									/*for (int i = 0; i < testData_vec.size(); i++){
 										testData_vec[i] = (testData_vec[i] - normalize[i][0]) / normalize[i][1];
-									}
-									svm_node* testData = new svm_node[4];
+									}*/
+									svm_node* testData = new svm_node[TOP_FEATURE+1];
 									
 									for (int i = 0; i < TOP_FEATURE; i++){
-										testData[i].value = 0;
+										testData[i].value = testData_vec[i];
+										/*testData[i].value = 0;
 										for (int j = 0; j < FaceShapeAnimations_Count; j++){
 											testData[i].value += testData_vec[j] * eigenVec[j][i];
-										}
-										testData[i].index = i;
+										}*/
+										testData[i].index = i+1;
 									}
 									testData[TOP_FEATURE].index = -1;
 									/*
@@ -387,7 +389,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 										cv::putText(bufferMat, outputResult, cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
 									}
 									delete[] pAnimationUnits;
-									//delete[] testData;
+									delete[] testData;
 								}
 
 								SafeRelease( pFaceModelData );
@@ -512,8 +514,10 @@ const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, co
 				initialVal[faceAnim] += pAnimUnits[faceAnim];
 				subData.push_back(pAnimUnits[faceAnim]);
 			}
-			testData.push_back(pAnimUnits[i]);
+			
 			if (!begin && count != 0) initialVal[faceAnim] = initialVal[faceAnim] / count;
+			//testData.push_back(pAnimUnits[i] - initialVal[i]);
+			testData.push_back(pAnimUnits[i]);
 
 
 				switch (faceAnim)
@@ -605,17 +609,6 @@ const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, co
 		}
 		return 3;*/
 		return testData;
-}
-
-void setNewParameter(svm_parameter& parameter){
-	parameter.svm_type = C_SVC;
-	parameter.kernel_type = RBF;
-	parameter.gamma = 0.3333;
-	parameter.cache_size = 40;
-	parameter.eps=0.1;
-	parameter.C=1;
-	parameter.shrinking = 1;
-	parameter.probability = 0;
 }
 
 void getEigenVec(double eigenVec[][TOP_FEATURE]){
