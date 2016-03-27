@@ -13,8 +13,8 @@
 #include <fstream>
 #include "C:\Users\z4shang\Documents\libsvm-master\svm.h"
 
-#define TOTAL_INIT 200
-#define TOTAL_DATA 1000
+#define TOTAL_INIT 230
+#define TOTAL_DATA 2000
 #define TOP_FEATURE 5
 
 using namespace std;
@@ -146,6 +146,11 @@ int _tmain( int argc, _TCHAR* argv[] )
 		else if (i<400) problem.y[i] = 1;
 		else if (i<600) problem.y[i] = 2;
 		else if (i<800) problem.y[i] = 3;
+		else if (i<1000) problem.y[i] = 4;
+		else if (i<1200) problem.y[i] = 0;
+		else if (i<1400) problem.y[i] = 1;
+		else if (i<1600) problem.y[i] = 2;
+		else if (i<1800) problem.y[i] = 3;
 		else problem.y[i] = 4;
 	}
 	inFile.close();
