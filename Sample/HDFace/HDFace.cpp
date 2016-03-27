@@ -14,8 +14,8 @@
 #include "C:\Users\z4shang\Documents\libsvm-master\svm.h"
 
 #define TOTAL_INIT 200
-#define TOTAL_DATA 800
-#define TOP_FEATURE 17
+#define TOTAL_DATA 1000
+#define TOP_FEATURE 5
 
 using namespace std;
 const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data);
@@ -131,13 +131,13 @@ int _tmain( int argc, _TCHAR* argv[] )
 	problem.l = TOTAL_DATA;
 	for (int i = 0; i < TOTAL_DATA; i++) problem.x[i] = new svm_node[TOP_FEATURE+1];
 
-	inFile.open("total.txt");
+	inFile.open("newData.txt");
 	if (!inFile.is_open()) return 0;
 
-	for (int i = 0; i < TOTAL_DATA; i++){
-		for (int j = 0; j < TOP_FEATURE; j++){
-			problem.x[i][j].index = j+1;
-			inFile >> problem.x[i][j].value;
+	for (int i = 0; i < TOP_FEATURE; i++){
+		for (int j = 0; j < TOTAL_DATA; j++){
+			problem.x[j][i].index = i+1;
+			inFile >> problem.x[j][i].value;
 		}
 	}
 	for (int i = 0; i < TOTAL_DATA; i++){
@@ -145,7 +145,8 @@ int _tmain( int argc, _TCHAR* argv[] )
 		if (i<200) problem.y[i] = 0;
 		else if (i<400) problem.y[i] = 1;
 		else if (i<600) problem.y[i] = 2;
-		else problem.y[i] = 3;
+		else if (i<800) problem.y[i] = 3;
+		else problem.y[i] = 4;
 	}
 	inFile.close();
 
@@ -332,20 +333,14 @@ int _tmain( int argc, _TCHAR* argv[] )
 									svm_node* testData = new svm_node[TOP_FEATURE+1];
 									
 									for (int i = 0; i < TOP_FEATURE; i++){
-										testData[i].value = testData_vec[i];
-										/*testData[i].value = 0;
+										//testData[i].value = testData_vec[i];
+										testData[i].value = 0;
 										for (int j = 0; j < FaceShapeAnimations_Count; j++){
 											testData[i].value += testData_vec[j] * eigenVec[j][i];
-										}*/
+										}
 										testData[i].index = i+1;
 									}
 									testData[TOP_FEATURE].index = -1;
-									/*
-									for (int i = 0; i < FaceShapeAnimations_Count; i++){
-										testData[i].value = testData_vec[i];
-										testData[i].index = i;
-									}
-									testData[17].index = -1;*/
 									
 									if (!begin) initial_count = 0;
 									else{
@@ -381,9 +376,13 @@ int _tmain( int argc, _TCHAR* argv[] )
 											outputResult = ":-O";
 											faceText = L":-O\n";
 										}
-										else{
+										else if (res == 3){
 											outputResult = ":-(";
 											faceText = L":-(\n";
+										}
+										else{
+											outputResult = "/-(";
+											faceText = L"/-(\n";
 										}
 										wcout << faceText << endl;
 										cv::putText(bufferMat, outputResult, cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0f, static_cast<cv::Scalar>(color[count]), 2, CV_AA);
