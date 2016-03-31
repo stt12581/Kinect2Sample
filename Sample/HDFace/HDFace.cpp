@@ -4,6 +4,7 @@
 //
 
 #include "stdafx.h"
+#include <windows.h>
 #include <Windows.h>
 #include <Kinect.h>
 #include <Kinect.Face.h>
@@ -11,16 +12,20 @@
 #include <bitset>
 #include <vector>
 #include <fstream>
-#include "C:\Users\z4shang\Documents\libsvm-master\svm.h"
+#include <svm.h>
+#include <thread>
+
 
 #define TOTAL_INIT 230
-#define TOTAL_DATA 2000
+#define TOTAL_DATA 4600
 #define TOP_FEATURE 5
 
 using namespace std;
 const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, const float* pAnimUnits, double initialVal[], bool begin, int count, vector<vector<double>> &data);
 void getEigenVec(double eigenVec[][TOP_FEATURE]);
 void readNormalizedData(double normalize[][2]);
+void PlaySoundThreadProc();
+int res = 0;
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -32,7 +37,9 @@ inline void SafeRelease( Interface *& pInterfaceToRelease )
 }
 
 int _tmain( int argc, _TCHAR* argv[] )
-{
+{	
+	
+
 	cv::setUseOptimized( true );
 
 	// Sensor
@@ -121,7 +128,9 @@ int _tmain( int argc, _TCHAR* argv[] )
 	vector<vector<double>> data;
 	bool begin = true;
 	int initial_count = 0;
+	bool audioFinished = true;
 	svm_problem problem;
+	int step = 0;
 	
 	//read training dataset
 	ifstream inFile;
@@ -142,16 +151,26 @@ int _tmain( int argc, _TCHAR* argv[] )
 	}
 	for (int i = 0; i < TOTAL_DATA; i++){
 		problem.x[i][TOP_FEATURE].index = -1;
-		if (i<200) problem.y[i] = 0;
-		else if (i<400) problem.y[i] = 1;
-		else if (i<600) problem.y[i] = 2;
-		else if (i<800) problem.y[i] = 3;
-		else if (i<1000) problem.y[i] = 4;
-		else if (i<1200) problem.y[i] = 0;
-		else if (i<1400) problem.y[i] = 1;
-		else if (i<1600) problem.y[i] = 2;
-		else if (i<1800) problem.y[i] = 3;
-		else problem.y[i] = 4;
+		if (i < 3000){
+			int j = i % 1000;
+			if (j < 200) problem.y[i] = 0;
+			else if (j < 400) problem.y[i] = 1;
+			else if (j < 600) problem.y[i] = 2;
+			else if (j < 800) problem.y[i] = 3;
+			else problem.y[i] = 4;
+		}
+		else{
+			if (i < 3200) problem.y[i] = 0;
+			else if (i < 3400) problem.y[i] = 2;
+			else if (i < 3600) problem.y[i] = 3;
+			else if (i < 3800) problem.y[i] = 4;
+			else if (i < 4000) problem.y[i] = 0;
+			else if (i < 4200) problem.y[i] = 1;
+			else if (i < 4400) problem.y[i] = 3;
+			else if (i < 4600) problem.y[i] = 4;
+
+		}
+		
 	}
 	inFile.close();
 
@@ -236,6 +255,8 @@ int _tmain( int argc, _TCHAR* argv[] )
 		std::cerr << "Error : GetFaceModelVertexCount()" << std::endl;
 		return -1;
 	}
+
+	thread first(PlaySoundThreadProc);
 
 	while( 1 ){
 		// Color Frame
@@ -331,6 +352,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 										begin = false && initial_count != 0, calculate average initial value
 										begin = false && initial_count ==0, do regular recognition
 									*/
+
 									vector<double> testData_vec= DrawFaceFrameResults(&headPivot, pAnimationUnits, initialFaceValue, begin, initial_count, data);
 									/*for (int i = 0; i < testData_vec.size(); i++){
 										testData_vec[i] = (testData_vec[i] - normalize[i][0]) / normalize[i][1];
@@ -366,7 +388,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 									}
 
 									if (!begin){
-										double res = svm_predict(model, testData);
+										res = svm_predict(model, testData);
 										wstring faceText;
 										string outputResult = "";
 										if (res == 0){
@@ -636,4 +658,33 @@ void readNormalizedData(double normalize[][2]){
 	}
 	inFile.close();
 
+}
+
+void PlaySoundThreadProc(){
+	int step = 0;
+	string nameMatch[6][5];
+	for (int i = 0; i < 6; i++){
+		for (int j = 0; j < 5; j++){
+			if (i == 0) nameMatch[i][j] = "turnonwater" + j;
+			else if (i == 1) nameMatch[i][j] = "rinsehand" + j;
+			else if (i == 2) nameMatch[i][j] = "usesoap" + j;
+			else if (i == 3) nameMatch[i][j] = "washhand" + j;
+			else if (i == 4) nameMatch[i][j] = "turnoff" + j;
+			else nameMatch[i][j] = "dry" + j;
+		}
+	}
+	while (1){
+		//PlaySound(TEXT(nameMatch[step][res]+".wav"), NULL, SND_FILENAME | SND_ASYNC);
+		if (res == 0)
+			PlaySound(TEXT("turnonwater_slow_alice.wav"), NULL, SND_FILENAME | SND_ASYNC);
+		else if (res == 1)
+			PlaySound(TEXT("rinsehand_fast_d.wav"), NULL, SND_FILENAME | SND_ASYNC);
+		else if (res == 2)
+			PlaySound(TEXT("turnonwater_slow_d.wav"), NULL, SND_FILENAME | SND_ASYNC);
+		else 
+			PlaySound(TEXT("rinsehand_fast_alice.wav"), NULL, SND_FILENAME | SND_ASYNC);
+		Sleep(10000);
+		step++;
+		step = step % 6;
+	}
 }
