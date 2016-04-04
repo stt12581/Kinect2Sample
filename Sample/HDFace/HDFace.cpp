@@ -25,7 +25,9 @@ const vector<double> DrawFaceFrameResults(const CameraSpacePoint* pHeadPivot, co
 void getEigenVec(double eigenVec[][TOP_FEATURE]);
 void readNormalizedData(double normalize[][2]);
 void PlaySoundThreadProc();
-int res = 0;
+//global vars
+int res = 5;
+int emotionCount[5] = {0};
 
 template<class Interface>
 inline void SafeRelease( Interface *& pInterfaceToRelease )
@@ -131,6 +133,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 	bool audioFinished = true;
 	svm_problem problem;
 	int step = 0;
+	bool voiceDone = false;
 	
 	//read training dataset
 	ifstream inFile;
@@ -389,6 +392,7 @@ int _tmain( int argc, _TCHAR* argv[] )
 
 									if (!begin){
 										res = svm_predict(model, testData);
+										emotionCount[res]++;
 										wstring faceText;
 										string outputResult = "";
 										if (res == 0){
@@ -662,29 +666,38 @@ void readNormalizedData(double normalize[][2]){
 
 void PlaySoundThreadProc(){
 	int step = 0;
-	string nameMatch[6][5];
+	wstring nameMatch[6][5];
 	for (int i = 0; i < 6; i++){
 		for (int j = 0; j < 5; j++){
-			if (i == 0) nameMatch[i][j] = "turnonwater" + j;
-			else if (i == 1) nameMatch[i][j] = "rinsehand" + j;
-			else if (i == 2) nameMatch[i][j] = "usesoap" + j;
-			else if (i == 3) nameMatch[i][j] = "washhand" + j;
-			else if (i == 4) nameMatch[i][j] = "turnoff" + j;
-			else nameMatch[i][j] = "dry" + j;
+			wstring voice = L"";
+			if (j == 0) voice = L"_slow_alice.wav";
+			else if (j == 1) voice = L"_fast_alice.wav";
+			else if (j == 2) voice = L"_slow_d.wav";
+			else if (j == 3) voice = L"_fast_d.wav";
+			else voice = L"_slow_d.wav";
+
+			if (i == 0) nameMatch[i][j] = L"turnonwater" + voice;
+			else if (i == 1) nameMatch[i][j] = L"rinsehand" + voice;
+			else if (i == 2) nameMatch[i][j] = L"usesoap" + voice;
+			else if (i == 3) nameMatch[i][j] = L"washhand" + voice;
+			else if (i == 4) nameMatch[i][j] = L"offwater" + voice;
+			else nameMatch[i][j] = L"dry" + voice;
 		}
 	}
 	while (1){
-		//PlaySound(TEXT(nameMatch[step][res]+".wav"), NULL, SND_FILENAME | SND_ASYNC);
-		if (res == 0)
-			PlaySound(TEXT("turnonwater_slow_alice.wav"), NULL, SND_FILENAME | SND_ASYNC);
-		else if (res == 1)
-			PlaySound(TEXT("rinsehand_fast_d.wav"), NULL, SND_FILENAME | SND_ASYNC);
-		else if (res == 2)
-			PlaySound(TEXT("turnonwater_slow_d.wav"), NULL, SND_FILENAME | SND_ASYNC);
-		else 
-			PlaySound(TEXT("rinsehand_fast_alice.wav"), NULL, SND_FILENAME | SND_ASYNC);
-		Sleep(10000);
-		step++;
-		step = step % 6;
+		if (res == 5){
+			PlaySound(TEXT("demo.wav"), NULL, SND_FILENAME | SND_ASYNC);
+			Sleep(18000);
+		}
+		else{
+			int emotion = distance(emotionCount, max_element(emotionCount, emotionCount + 5));
+			for (int i = 0; i < 5; i++){
+				emotionCount[i] = 0;
+			}
+			PlaySound(nameMatch[step][emotion].c_str(), NULL, SND_FILENAME | SND_ASYNC);
+			Sleep(10000);
+			step++;
+			step = step % 6;
+		}
 	}
 }
